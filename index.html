@@ -1440,56 +1440,88 @@ function renderOverview(){
   grpOrder=grpOrder.filter(function(v,i,a){return a.indexOf(v)===i;});
   var bySG=grpBy(d,'sg');
   var gtAct=0,gtPlan=0,gtFcst=0,tbodyHtml='';
-  var SKIP_GRP_TOTALS=['Telecom'];
+  var SKIP_GRP_TOTALS=['Telecom','Computers'];
+  function renderSGRow(sg){
+    var rows=bySG[sg]||[];
+    var sAct=sum(rows,'act'),sPlan=sum(rows,'plan'),sFcst=sum(rows,'fcst'),sAvp=sAct-sPlan,sAvf=sAct-sFcst;
+    var safeSG=sg.replace(/[^a-zA-Z0-9]/g,'_');
+    var k='OV|'+safeSG;
+    var expandBtn=(sg==='Telecom')?'<button class="tele-expand-btn" id="tele-btn-'+safeSG+'" data-sg="'+safeSG+'" onclick="toggleTeleRegion(this.dataset.sg)">- Region</button>':'';
+    var ETP_GROUPS=['Computer_Depreciation','Computer_Leasing','Computer_Maintenance'];
+    var accCell, finalAccVal;
+    if(safeSG==='Telecom'){
+      finalAccVal=(getETPTotal('Telecom_USI')||0)+(getETPTotal('Telecom_US')||0);
+      STORE.acc[k]=String(finalAccVal);
+      accCell='<td class="'+vc(finalAccVal)+'" id="acc-ov-Telecom">'+fmt(finalAccVal)+'</td>';
+    } else if(ETP_GROUPS.indexOf(safeSG)>=0){
+      finalAccVal=getETPTotal(safeSG)||0;
+      STORE.acc[k]=String(finalAccVal);
+      accCell='<td class="'+vc(finalAccVal)+'" id="acc-ov-'+safeSG+'">'+fmt(finalAccVal)+'</td>';
+    } else {
+      finalAccVal=parseFloat(STORE.acc[k]||0)||0;
+      accCell='<td><input class="num-inp" type="number" value="'+(STORE.acc[k]||'')+'" placeholder="0" data-sg="'+safeSG+'" data-avf="'+sAvf+'" onchange="saveAccOV(this)" title="Accrual or reversal"/></td>';
+    }
+    var pvAdj2=sAvf+finalAccVal;
+    var rowHtml='<tr id="sg-row-'+safeSG+'"><td class="sticky lft" style="padding-left:22px">'+sg+expandBtn+'</td><td>'+fmt(sAct)+'</td><td>'+fmt(sPlan)+'</td><td>'+fmt(sFcst)+'</td><td class="'+vc(sAvp)+'">'+fmt(sAvp)+'</td><td class="'+vc(sAvf)+'">'+fmt(sAvf)+'</td>'+accCell+'<td class="'+vc(pvAdj2)+'" id="pv-ov-'+safeSG+'">'+fmt(pvAdj2)+'</td><td><textarea class="cmt-input" rows="1" placeholder="Add comment..." data-k="OVC|'+safeSG+'" onchange="saveOVC(this)" style="width:100%;min-width:200px">'+(STORE.ovc&&STORE.ovc['OVC|'+safeSG]||'')+'</textarea></td></tr>';
+    if(sg==='Telecom'){
+      var byReg=grpBy(rows,'reg');
+      var usiRows=byReg['USI']||[],usAllRows=(byReg['US']||[]).concat(byReg['Mexico']||[]).concat(byReg['Costa Rica']||[]);
+      var usiAct=sum(usiRows,'act'),usiPlan=sum(usiRows,'plan'),usiFcst=sum(usiRows,'fcst');
+      var usAct=sum(usAllRows,'act'),usPlan=sum(usAllRows,'plan'),usFcst=sum(usAllRows,'fcst');
+      var rBg='background:rgba(163,113,247,0.04);border-bottom:1px solid var(--bdr2)';
+      if(usiRows.length) rowHtml+='<tr class="tele-region-rows" id="tele-rows-usi-'+safeSG+'" style="display:table-row;'+rBg+'"><td class="sticky lft" style="padding-left:38px;font-size:11px;color:var(--txt2);font-family:var(--font)"><span style="opacity:0.4;margin-right:5px">&#9492;&#9472;</span>'+rb('USI')+'</td><td>'+fmt(usiAct)+'</td><td>'+fmt(usiPlan)+'</td><td>'+fmt(usiFcst)+'</td><td class="'+vc(usiAct-usiPlan)+'">'+fmt(usiAct-usiPlan)+'</td><td class="'+vc(usiAct-usiFcst)+'">'+fmt(usiAct-usiFcst)+'</td><td class="'+vc(getETPTotal('Telecom_USI')||0)+'" id="acc-ov-Telecom_USI">'+fmt(getETPTotal('Telecom_USI')||0)+'</td><td class="'+vc((usiAct-usiFcst)+(getETPTotal('Telecom_USI')||0))+'" id="pv-ov-Telecom_USI">'+fmt((usiAct-usiFcst)+(getETPTotal('Telecom_USI')||0))+'</td><td></td></tr>';
+      if(usAllRows.length) rowHtml+='<tr class="tele-region-rows" id="tele-rows-us-'+safeSG+'" style="display:table-row;'+rBg+'"><td class="sticky lft" style="padding-left:38px;font-size:11px;color:var(--txt2);font-family:var(--font)"><span style="opacity:0.4;margin-right:5px">&#9492;&#9472;</span>'+rb('US')+'<span style="font-size:9px;color:var(--txt3);margin-left:5px">incl. Mexico &amp; Costa Rica</span></td><td>'+fmt(usAct)+'</td><td>'+fmt(usPlan)+'</td><td>'+fmt(usFcst)+'</td><td class="'+vc(usAct-usPlan)+'">'+fmt(usAct-usPlan)+'</td><td class="'+vc(usAct-usFcst)+'">'+fmt(usAct-usFcst)+'</td><td class="'+vc(getETPTotal('Telecom_US')||0)+'" id="acc-ov-Telecom_US">'+fmt(getETPTotal('Telecom_US')||0)+'</td><td class="'+vc((usAct-usFcst)+(getETPTotal('Telecom_US')||0))+'" id="pv-ov-Telecom_US">'+fmt((usAct-usFcst)+(getETPTotal('Telecom_US')||0))+'</td><td></td></tr>';
+    }
+    return {sAct:sAct,sPlan:sPlan,sFcst:sFcst,finalAccVal:finalAccVal,rowHtml:rowHtml};
+  }
+  function subtotalRow(label,act,plan,fcst,accr){
+    var avp=act-plan,avf=act-fcst,pvAdj=avf+accr;
+    return '<tr style="background:var(--surf2);border-top:1px solid var(--bdr)"><td class="sticky lft" style="font-size:10px;color:var(--txt2);font-weight:700;padding-left:22px;font-family:var(--font)">'+label+'</td><td style="font-weight:600">'+fmt(act)+'</td><td style="font-weight:600">'+fmt(plan)+'</td><td style="font-weight:600">'+fmt(fcst)+'</td><td class="'+vc(avp)+'" style="font-weight:600">'+fmt(avp)+'</td><td class="'+vc(avf)+'" style="font-weight:600">'+fmt(avf)+'</td><td class="'+vc(accr)+'" style="font-weight:600">'+fmt(accr)+'</td><td class="'+vc(pvAdj)+'" style="font-weight:600">'+fmt(pvAdj)+'</td><td></td></tr>';
+  }
   grpOrder.forEach(function(grp){
     tbodyHtml+='<tr style="background:rgba(47,129,247,0.07)"><td colspan="9" style="color:var(--acc);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;padding:7px 14px;font-family:var(--font)"><span style="opacity:0.5;margin-right:6px">&#9632;</span>'+grp+'</td></tr>';
     var grpAct=0,grpPlan=0,grpFcst=0,grpAccr=0;
-    grpSGMap[grp].forEach(function(sg){
-      var rows=bySG[sg]||[];
-      var sAct=sum(rows,'act'),sPlan=sum(rows,'plan'),sFcst=sum(rows,'fcst'),sAvp=sAct-sPlan,sAvf=sAct-sFcst;
-      var safeSG=sg.replace(/[^a-zA-Z0-9]/g,'_');
-      var k='OV|'+safeSG;
-      var expandBtn=(sg==='Telecom')?'<button class="tele-expand-btn" id="tele-btn-'+safeSG+'" data-sg="'+safeSG+'" onclick="toggleTeleRegion(this.dataset.sg)">- Region</button>':'';
-      var ETP_GROUPS=['Computer_Depreciation','Computer_Leasing','Computer_Maintenance'];
-      var accCell, finalAccVal;
-      if(safeSG==='Telecom'){
-        finalAccVal=(getETPTotal('Telecom_USI')||0)+(getETPTotal('Telecom_US')||0);
-        STORE.acc[k]=String(finalAccVal);
-        accCell='<td class="'+vc(finalAccVal)+'" id="acc-ov-Telecom">'+fmt(finalAccVal)+'</td>';
-      } else if(ETP_GROUPS.indexOf(safeSG)>=0){
-        finalAccVal=getETPTotal(safeSG)||0;
-        STORE.acc[k]=String(finalAccVal);
-        accCell='<td class="'+vc(finalAccVal)+'" id="acc-ov-'+safeSG+'">'+fmt(finalAccVal)+'</td>';
-      } else {
-        finalAccVal=parseFloat(STORE.acc[k]||0)||0;
-        accCell='<td><input class="num-inp" type="number" value="'+(STORE.acc[k]||'')+'" placeholder="0" data-sg="'+safeSG+'" data-avf="'+sAvf+'" onchange="saveAccOV(this)" title="Accrual or reversal"/></td>';
+    if(grp==='Computers'){
+      var GROSS_SGS=['Computer Depreciation','Computer Maintenance','Computer Leasing'];
+      var grossAct=0,grossPlan=0,grossFcst=0,grossAccr=0;
+      GROSS_SGS.forEach(function(sg){
+        if(grpSGMap[grp].indexOf(sg)<0) return;
+        var res=renderSGRow(sg);
+        tbodyHtml+=res.rowHtml;
+        grossAct+=res.sAct;grossPlan+=res.sPlan;grossFcst+=res.sFcst;grossAccr+=res.finalAccVal;
+        gtAct+=res.sAct;gtPlan+=res.sPlan;gtFcst+=res.sFcst;
+      });
+      tbodyHtml+=subtotalRow('HW Gross spend',grossAct,grossPlan,grossFcst,grossAccr);
+
+      var recAct=0,recPlan=0,recFcst=0,recAccr=0;
+      var recovSG='Computer Recoveries';
+      if(grpSGMap[grp].indexOf(recovSG)>=0){
+        var res2=renderSGRow(recovSG);
+        tbodyHtml+=res2.rowHtml;
+        recAct=res2.sAct;recPlan=res2.sPlan;recFcst=res2.sFcst;recAccr=res2.finalAccVal;
+        gtAct+=recAct;gtPlan+=recPlan;gtFcst+=recFcst;
       }
-      grpAct+=sAct;grpPlan+=sPlan;grpFcst+=sFcst;grpAccr+=finalAccVal;
-      gtAct+=sAct;gtPlan+=sPlan;gtFcst+=sFcst;
-      var pvAdj2=sAvf+finalAccVal;
-      tbodyHtml+='<tr id="sg-row-'+safeSG+'"><td class="sticky lft" style="padding-left:22px">'+sg+expandBtn+'</td><td>'+fmt(sAct)+'</td><td>'+fmt(sPlan)+'</td><td>'+fmt(sFcst)+'</td><td class="'+vc(sAvp)+'">'+fmt(sAvp)+'</td><td class="'+vc(sAvf)+'">'+fmt(sAvf)+'</td>'+accCell+'<td class="'+vc(pvAdj2)+'" id="pv-ov-'+safeSG+'">'+fmt(pvAdj2)+'</td><td><textarea class="cmt-input" rows="1" placeholder="Add comment..." data-k="OVC|'+safeSG+'" onchange="saveOVC(this)" style="width:100%;min-width:200px">'+(STORE.ovc&&STORE.ovc['OVC|'+safeSG]||'')+'</textarea></td></tr>';
-      if(sg==='Telecom'){
-        var byReg=grpBy(rows,'reg');
-        var usiRows=byReg['USI']||[],usAllRows=(byReg['US']||[]).concat(byReg['Mexico']||[]).concat(byReg['Costa Rica']||[]);
-        var usiAct=sum(usiRows,'act'),usiPlan=sum(usiRows,'plan'),usiFcst=sum(usiRows,'fcst');
-        var usAct=sum(usAllRows,'act'),usPlan=sum(usAllRows,'plan'),usFcst=sum(usAllRows,'fcst');
-        var rBg='background:rgba(163,113,247,0.04);border-bottom:1px solid var(--bdr2)';
-        if(usiRows.length) tbodyHtml+='<tr class="tele-region-rows" id="tele-rows-usi-'+safeSG+'" style="display:table-row;'+rBg+'"><td class="sticky lft" style="padding-left:38px;font-size:11px;color:var(--txt2);font-family:var(--font)"><span style="opacity:0.4;margin-right:5px">&#9492;&#9472;</span>'+rb('USI')+'</td><td>'+fmt(usiAct)+'</td><td>'+fmt(usiPlan)+'</td><td>'+fmt(usiFcst)+'</td><td class="'+vc(usiAct-usiPlan)+'">'+fmt(usiAct-usiPlan)+'</td><td class="'+vc(usiAct-usiFcst)+'">'+fmt(usiAct-usiFcst)+'</td><td class="'+vc(getETPTotal('Telecom_USI')||0)+'" id="acc-ov-Telecom_USI">'+fmt(getETPTotal('Telecom_USI')||0)+'</td><td class="'+vc((usiAct-usiFcst)+(getETPTotal('Telecom_USI')||0))+'" id="pv-ov-Telecom_USI">'+fmt((usiAct-usiFcst)+(getETPTotal('Telecom_USI')||0))+'</td><td></td></tr>';
-        if(usAllRows.length) tbodyHtml+='<tr class="tele-region-rows" id="tele-rows-us-'+safeSG+'" style="display:table-row;'+rBg+'"><td class="sticky lft" style="padding-left:38px;font-size:11px;color:var(--txt2);font-family:var(--font)"><span style="opacity:0.4;margin-right:5px">&#9492;&#9472;</span>'+rb('US')+'<span style="font-size:9px;color:var(--txt3);margin-left:5px">incl. Mexico &amp; Costa Rica</span></td><td>'+fmt(usAct)+'</td><td>'+fmt(usPlan)+'</td><td>'+fmt(usFcst)+'</td><td class="'+vc(usAct-usPlan)+'">'+fmt(usAct-usPlan)+'</td><td class="'+vc(usAct-usFcst)+'">'+fmt(usAct-usFcst)+'</td><td class="'+vc(getETPTotal('Telecom_US')||0)+'" id="acc-ov-Telecom_US">'+fmt(getETPTotal('Telecom_US')||0)+'</td><td class="'+vc((usAct-usFcst)+(getETPTotal('Telecom_US')||0))+'" id="pv-ov-Telecom_US">'+fmt((usAct-usFcst)+(getETPTotal('Telecom_US')||0))+'</td><td></td></tr>';
-      }
+      tbodyHtml+=subtotalRow('HW Net spend',grossAct+recAct,grossPlan+recPlan,grossFcst+recFcst,grossAccr+recAccr);
+    } else {
+      grpSGMap[grp].forEach(function(sg){
+        var res=renderSGRow(sg);
+        tbodyHtml+=res.rowHtml;
+        grpAct+=res.sAct;grpPlan+=res.sPlan;grpFcst+=res.sFcst;grpAccr+=res.finalAccVal;
+        gtAct+=res.sAct;gtPlan+=res.sPlan;gtFcst+=res.sFcst;
+      });
       if(SKIP_GRP_TOTALS.indexOf(grp)<0){
         var gAvp=grpAct-grpPlan,gAvf=grpAct-grpFcst,gPvAdj=gAvf+grpAccr;
         tbodyHtml+='<tr style="background:var(--surf2);border-top:1px solid var(--bdr)"><td class="sticky lft" style="font-size:10px;color:var(--txt3);font-style:italic;padding-left:22px;font-family:var(--font)">'+grp+' Total</td><td style="font-weight:600">'+fmt(grpAct)+'</td><td style="font-weight:600">'+fmt(grpPlan)+'</td><td style="font-weight:600">'+fmt(grpFcst)+'</td><td class="'+vc(gAvp)+'" style="font-weight:600">'+fmt(gAvp)+'</td><td class="'+vc(gAvf)+'" style="font-weight:600">'+fmt(gAvf)+'</td><td>&#x2014;</td><td class="'+vc(gPvAdj)+'" style="font-weight:600">'+fmt(gPvAdj)+'</td><td></td></tr>';
       }
-    });
+    }
   });
   var gtAvp=gtAct-gtPlan,gtAvf=gtAct-gtFcst;
   var GT_ACC_SGS=['Computer_Depreciation','Computer_Leasing','Computer_Maintenance','Telecom'];
   var gtAccrSum=GT_ACC_SGS.reduce(function(s,sg){return s+(parseFloat(STORE.acc['OV|'+sg])||0);},0);
   var gtPvAdj=gtAvf+gtAccrSum;
   tbodyHtml+='<tr class="tot"><td class="sticky lft">GRAND TOTAL</td><td>'+fmt(gtAct)+'</td><td>'+fmt(gtPlan)+'</td><td>'+fmt(gtFcst)+'</td><td class="'+vc(gtAvp)+'">'+fmt(gtAvp)+'</td><td class="'+vc(gtAvf)+'">'+fmt(gtAvf)+'</td><td class="'+vc(gtAccrSum)+'" id="gt-acc-ov">'+fmt(gtAccrSum)+'</td><td class="'+vc(gtPvAdj)+'" id="gt-pv-ov">'+fmt(gtPvAdj)+'</td><td></td></tr>';
-  var noteHtml='<div style="font-size:10px;color:var(--txt3);padding:8px 14px;border-top:1px solid var(--bdr2);background:var(--surf2)"><span style="color:var(--yel);font-weight:600">Accruals/Reversals</span> = from Entries to be Posted.&nbsp;&nbsp;<span style="color:var(--pur);font-weight:600">Proj Var Post Adj</span> = Act vs Forecast + Accruals/Reversals (live).&nbsp;&nbsp;Click <span style="color:var(--acc);font-weight:600">- Region</span> on Telecom to collapse.</div>';
-  var tableHtml='<div class="tbl-wrap ov-table-wrap"><div class="tbl-hdr"><div><div class="tbl-title">Account Subgroup Summary &#8212; Prelim Data</div><div style="font-size:10px;color:var(--txt3);margin-top:2px">All regions combined &#183; Values in $</div></div></div><div class="tbl-scroll"><table><thead><tr><th class="sticky lft" style="min-width:220px">Account Sub Group</th><th style="min-width:88px">Actuals</th><th style="min-width:88px">Plan</th><th style="min-width:88px">Forecast</th><th style="min-width:110px">Act vs Plan</th><th style="min-width:110px">Act vs Forecast</th><th class="c-yel" style="min-width:140px">Accruals / Reversals</th><th class="c-pur" style="min-width:155px">Proj Var Post Adj</th><th class="lft" style="min-width:220px;color:var(--txt2)">Comments</th></tr></thead><tbody>'+tbodyHtml+'</tbody></table></div>'+noteHtml+'</div>';
+  var noteHtml='<div style="font-size:10px;color:var(--txt3);padding:8px 14px;border-top:1px solid var(--bdr2);background:var(--surf2)"><span style="color:var(--yel);font-weight:600">Pending Entries</span> = from Entries to be Posted.&nbsp;&nbsp;<span style="color:var(--pur);font-weight:600">Proj Var Post Adj</span> = Act vs Forecast + Pending Entries (live).&nbsp;&nbsp;Click <span style="color:var(--acc);font-weight:600">- Region</span> on Telecom to collapse.</div>';
+  var tableHtml='<div class="tbl-wrap ov-table-wrap"><div class="tbl-hdr"><div><div class="tbl-title">Account Subgroup Summary &#8212; Prelim Data</div><div style="font-size:10px;color:var(--txt3);margin-top:2px">All regions combined &#183; Values in $</div></div></div><div class="tbl-scroll"><table><thead><tr><th class="sticky lft" style="min-width:220px">Account Sub Group</th><th style="min-width:88px">Actuals</th><th style="min-width:88px">Plan</th><th style="min-width:88px">Forecast</th><th style="min-width:110px">Act vs Plan</th><th style="min-width:110px">Act vs Forecast</th><th class="c-yel" style="min-width:140px">Pending Entries</th><th class="c-pur" style="min-width:155px">Proj Var Post Adj</th><th class="lft" style="min-width:220px;color:var(--txt2)">Comments</th></tr></thead><tbody>'+tbodyHtml+'</tbody></table></div>'+noteHtml+'</div>';
   var VD_GROUPS=['Telecom USI','Telecom US','Computer Depreciation','Computer Leasing','Computer Maintenance','Computer Recoveries'];
   // ── Entries to be Posted ──────────────────────────────────────────────
   var etpHtml='<div class="ov-section-block"><div class="ov-section-title"><span class="ov-section-dot" style="background:var(--yel)"></span>Entries to be Posted</div><div style="font-size:11px;color:var(--txt2);margin-bottom:14px;margin-top:2px">Expected journal entries per Account Sub Group &#183; Add rows as needed</div><div class="vd-grid">';
